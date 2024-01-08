@@ -1,34 +1,92 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
+	"log"
+	"net/http"
+
+	"gorm.io/gorm"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
-const (
-	host     = "localhost"
-	port     = 5400
-	user     = "postgres"
-	password = "secret"
-	dbname   = "DB_1"
-)
+type Book struct {
+	Author    string `json:"author"`
+	Title     string `json"title"`
+	Publisher string `json:"publisher"`
+}
 
+type Repository struct {
+	DB *gorm.DB
+}
+
+func (r *Repository) CreateBook(context *fiber.Ctx) error {
+book:
+	Book{}
+
+	err := context.BodyParser(&book)
+	if err != nil {
+		context.Status(http.StatusUnprocessableEntity).JSON(
+			&fiber.Map{"message": "request failed"})
+		return err
+	}
+
+	err = r.DB.Create(&book).Error
+	if err != nil {
+		context.Status(http.StatusBadRequest).JSON(
+			&fiber.Map{"message": "could not create book"})
+		return err
+	}
+
+	context.Status(http.StatusOK).JSON(&fiber.Map{
+		"message": "book has been added"})
+
+	return nil
+}
+
+func (r *Repository) GetBooks(context *fiber.Ctx) error {
+	bookModels := &[]models.Books{}
+
+	err := r.DB.Find(bookModels).Error
+	if err != nil {
+		context.Status(http.StatusBadRequest).JSON(
+			&fiber.Map{"message": "could not get books"})
+		return err
+	}
+
+	context.Status(http.StatusOK).JSON(&fiber.Map{
+		"message": "books fetched successfully",
+		"data":    bookModels,
+	})
+	return nil
+}
+
+func (r *Repository) SetupRoutes(app *fiber.App) {
+	api := app.Group("/api")
+	api.Post("/create_book", r.CreateBook)
+	api.Delete("delete_book/:id", r.DeleteBook)
+	api.Get("/books/:id", r.GetBookByID)
+	api.Get("/books", r.GetBooks)
+}
 func main() {
-	// connection string
-	psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// open database
-	db, err := sql.Open("postgres", psqlconn)
-	CheckError(err)
+	db, err := storage.NewConnection(config)
+	if err != nil {
+		log.Fatal("could not load the database")
+	}
 
-	// close database
-	defer db.Close()
+	r := Repository{
+		DB: db,
+	}
 
-	// check db
-	err = db.Ping()
-	CheckError(err)
-
-	fmt.Println("Connected!")
+	app := fiber.New()
+	r.SetupRoutes(app)
+	app.Listen(":8080")
 }
 
 func CheckError(err error) {
