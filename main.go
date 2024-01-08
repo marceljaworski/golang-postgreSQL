@@ -10,7 +10,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
 	"github.com/marceljaworski/golang-postgreSQL/models"
 	"github.com/marceljaworski/golang-postgreSQL/storage"
 )
@@ -26,8 +25,7 @@ type Repository struct {
 }
 
 func (r *Repository) CreateBook(context *fiber.Ctx) error {
-book:
-	Book{}
+	book := Book{}
 
 	err := context.BodyParser(&book)
 	if err != nil {
